@@ -11,7 +11,9 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 IMAGE_NAME="claude-code:latest"
-VOLUME_NAME="claude-code-config-${USER}"
+CONFIG_VOLUME="claude-code-config-${USER}"
+CACHE_VOLUME="claude-code-cache-${USER}"
+DATA_VOLUME="claude-code-data-${USER}"
 
 show_help() {
     echo -e "${BLUE}Claude Code Docker Manager${NC}"
@@ -40,12 +42,16 @@ show_status() {
         echo -e "${RED}✗ Image '$IMAGE_NAME' manquante${NC}"
     fi
     
-    # Volume
-    if docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Volume de configuration '$VOLUME_NAME' présent${NC}"
-    else
-        echo -e "${YELLOW}! Volume de configuration '$VOLUME_NAME' manquant${NC}"
-    fi
+    # Volumes
+    echo ""
+    echo -e "${BLUE}Volumes de configuration:${NC}"
+    for volume in "$CONFIG_VOLUME" "$CACHE_VOLUME" "$DATA_VOLUME"; do
+        if docker volume inspect "$volume" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Volume '$volume' présent${NC}"
+        else
+            echo -e "${YELLOW}! Volume '$volume' manquant${NC}"
+        fi
+    done
     
     # Containers actifs
     echo ""
@@ -90,8 +96,10 @@ reset_all() {
         echo -e "${YELLOW}Suppression de tous les containers...${NC}"
         docker ps -aq --filter="ancestor=$IMAGE_NAME" | xargs -r docker rm
         
-        echo -e "${YELLOW}Suppression du volume de configuration...${NC}"
-        docker volume rm "$VOLUME_NAME" 2>/dev/null || true
+        echo -e "${YELLOW}Suppression des volumes de configuration...${NC}"
+        for volume in "$CONFIG_VOLUME" "$CACHE_VOLUME" "$DATA_VOLUME"; do
+            docker volume rm "$volume" 2>/dev/null && echo "Volume $volume supprimé" || true
+        done
         
         echo -e "${GREEN}Réinitialisation terminée${NC}"
     else
@@ -146,9 +154,13 @@ open_shell() {
         --name "$CONTAINER_NAME" \
         --user adam \
         -v "$CURRENT_DIR:/workspace" \
-        -v "$VOLUME_NAME:/home/adam/.config/claude-code" \
+        -v "$CONFIG_VOLUME:/home/adam/.config" \
+        -v "$CACHE_VOLUME:/home/adam/.cache" \
+        -v "$DATA_VOLUME:/home/adam/.local/share" \
         -v "$HOME/.config/claude-code/api.key:/home/adam/.config/claude-code/api.key:ro" \
         -e ANTHROPIC_API_KEY="$(cat $HOME/.config/claude-code/api.key 2>/dev/null || echo '')" \
+        -e SHELL=/bin/bash \
+        -e HOME=/home/adam \
         "$IMAGE_NAME" \
         "cd /workspace && exec /bin/bash"
 }

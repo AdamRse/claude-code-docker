@@ -50,12 +50,17 @@ if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
     echo -e "${GREEN}Image construite avec succès${NC}"
 fi
 
-# Créer un volume persistant pour la configuration Claude Code
-VOLUME_NAME="claude-code-config-${USER}"
-if ! docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
-    echo -e "${YELLOW}Création du volume persistant pour la configuration...${NC}"
-    docker volume create "$VOLUME_NAME"
-fi
+# Créer des volumes persistants pour toute la configuration Claude Code
+CONFIG_VOLUME="claude-code-config-${USER}"
+CACHE_VOLUME="claude-code-cache-${USER}"
+DATA_VOLUME="claude-code-data-${USER}"
+
+for volume in "$CONFIG_VOLUME" "$CACHE_VOLUME" "$DATA_VOLUME"; do
+    if ! docker volume inspect "$volume" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Création du volume persistant $volume...${NC}"
+        docker volume create "$volume"
+    fi
+done
 
 # Fonction pour arrêter proprement le container existant
 cleanup_container() {
@@ -74,17 +79,20 @@ cleanup_container
 # Si aucun argument n'est fourni, lancer en mode interactif
 if [ $# -eq 0 ]; then
     echo -e "${GREEN}Lancement de Claude Code en mode interactif...${NC}"
-    echo -e "${YELLOW}Tapez 'exit' pour quitter le container${NC}"
     
     docker run -it \
         --name "$CONTAINER_NAME" \
         --user adam \
         -v "$CURRENT_DIR:/workspace" \
-        -v "$VOLUME_NAME:/home/adam/.config/claude-code" \
+        -v "$CONFIG_VOLUME:/home/adam/.config" \
+        -v "$CACHE_VOLUME:/home/adam/.cache" \
+        -v "$DATA_VOLUME:/home/adam/.local/share" \
         -v "$HOME/.config/claude-code/api.key:/home/adam/.config/claude-code/api.key:ro" \
         -e ANTHROPIC_API_KEY="$(cat $HOME/.config/claude-code/api.key)" \
-        "$IMAGE_NAME" \
-        "cd /workspace && exec /bin/bash"
+        -e SHELL=/bin/bash \
+        -e HOME=/home/adam \
+        --workdir /workspace \
+        "$IMAGE_NAME"
 else
     # Exécuter une commande spécifique
     echo -e "${GREEN}Exécution de: claude $*${NC}"
@@ -92,11 +100,16 @@ else
     docker run --rm \
         --user adam \
         -v "$CURRENT_DIR:/workspace" \
-        -v "$VOLUME_NAME:/home/adam/.config/claude-code" \
+        -v "$CONFIG_VOLUME:/home/adam/.config" \
+        -v "$CACHE_VOLUME:/home/adam/.cache" \
+        -v "$DATA_VOLUME:/home/adam/.local/share" \
         -v "$HOME/.config/claude-code/api.key:/home/adam/.config/claude-code/api.key:ro" \
         -e ANTHROPIC_API_KEY="$(cat $HOME/.config/claude-code/api.key)" \
+        -e SHELL=/bin/bash \
+        -e HOME=/home/adam \
+        --workdir /workspace \
         "$IMAGE_NAME" \
-        "cd /workspace && claude $*"
+        "$@"
 fi
 
 # Nettoyage en cas d'interruption

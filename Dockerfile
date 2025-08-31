@@ -24,7 +24,13 @@ RUN existing_user=$(getent passwd ${USER_ID} | cut -d: -f1 || echo "none") && \
 # Créer les répertoires nécessaires avec les bonnes permissions
 RUN mkdir -p /home/adam/.config/claude-code && \
     mkdir -p /home/adam/.anthropic && \
+    mkdir -p /home/adam/.local/share/claude && \
+    mkdir -p /home/adam/.cache/claude && \
     chown -R adam:adam /home/adam
+
+# Définir les variables d'environnement pour Claude Code
+ENV SHELL=/bin/bash
+ENV HOME=/home/adam
 
 # Définir l'utilisateur
 USER adam
