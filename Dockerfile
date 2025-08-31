@@ -1,14 +1,12 @@
 # Dockerfile pour Claude Code
 FROM node:20-alpine
 
+# Installer les dépendances système nécessaires
+RUN apk add --no-cache git bash
+
 # Mettre à jour npm et installer Claude Code globalement
 RUN npm install -g npm@latest
 RUN npm install -g @anthropic-ai/claude-code
-RUN echo "Checking installation..." && \
-    npm list -g --depth=0 && \
-    echo "PATH: $PATH" && \
-    ls -la /usr/local/bin/ && \
-    find /usr/local -name "*claude*" 2>/dev/null
 
 # Créer un utilisateur avec le même UID que votre utilisateur local
 ARG USER_ID=1000
@@ -23,9 +21,10 @@ RUN existing_user=$(getent passwd ${USER_ID} | cut -d: -f1 || echo "none") && \
         adduser -D -u ${USER_ID} adam; \
     fi
 
-# Créer les répertoires nécessaires
+# Créer les répertoires nécessaires avec les bonnes permissions
 RUN mkdir -p /home/adam/.config/claude-code && \
-    chown -R adam:adam /home/adam/.config
+    mkdir -p /home/adam/.anthropic && \
+    chown -R adam:adam /home/adam
 
 # Définir l'utilisateur
 USER adam
@@ -33,5 +32,9 @@ USER adam
 # Définir le répertoire de travail
 WORKDIR /workspace
 
-# Point d'entrée
-ENTRYPOINT ["claude"]
+# Utiliser bash comme shell par défaut
+SHELL ["/bin/bash", "-c"]
+
+# Point d'entrée avec bash
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["claude"]
